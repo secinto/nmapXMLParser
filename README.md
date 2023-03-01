@@ -8,8 +8,8 @@
   <img src="https://img.shields.io/github/license/secinto/nmapXMLParser?style=for-the-badge" alt="GitHub License">
 </p>
 
-Developed by Jake Miller - https://twitter.com/LaconicWolf/
-Updated and extended by Stefan Kraxberger - https://twitter.com/skraxberger/
+Developed by Jake Miller - https://twitter.com/LaconicWolf/  
+Updated and extended by Stefan Kraxberger - https://twitter.com/skraxberger/  
 
 Released as open source by secinto GmbH - https://secinto.com/  
 Released under Apache License version 2.0 see LICENSE for more information
