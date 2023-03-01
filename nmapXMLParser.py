@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-__author__ = 'Jake Miller (@LaconicWolf)'
-__date__ = '20171220'
-__version__ = '0.01'
+__author__ = 'Jake Miller (@LaconicWolf)\nStefan Kraxberger (@skraxberger)'
+__date__ = '20230301'
+__version__ = '0.02'
 __description__ = """Parses the XML output from an nmap scan. The user
                   can specify whether the data should be printed,
                   displayed as a list of IP addresses, or output to
@@ -13,7 +13,9 @@ __description__ = """Parses the XML output from an nmap scan. The user
 import xml.etree.ElementTree as etree
 import os
 import csv
+import json
 import argparse
+import datetime
 from collections import Counter
 from time import sleep
 
@@ -37,7 +39,9 @@ def get_host_data(root):
             host_name = host_name_element[0].findall('hostname')[0].attrib['name']
         except IndexError:
             host_name = ''
-        
+
+        endtime = host.attrib['endtime']
+
         # If we only want the IP addresses from the scan, stop here
         if args.ip_addresses:
             addr_info.extend((ip_address, host_name))
@@ -88,7 +92,7 @@ def get_host_data(root):
                     script_output = ''
 
                 # Create a list of the port data
-                port_data.extend((ip_address, host_name, os_name,
+                port_data.extend((ip_address, host_name, endtime, os_name,
                                   proto, port_id, service, product, 
                                   servicefp, script_id, script_output))
                 
@@ -97,7 +101,7 @@ def get_host_data(root):
 
         # If no port information, just create a list of host information
         except IndexError:
-            addr_info.extend((ip_address, host_name))
+            addr_info.extend((ip_address, host_name, endtime))
             host_data.append(addr_info)
     return host_data
 
@@ -122,7 +126,7 @@ def parse_to_csv(data):
         csv_file = open(csv_name, 'w', newline='')
         csv_writer = csv.writer(csv_file)
         top_row = [
-            'IP', 'Host', 'OS', 'Proto', 'Port',
+            'IP', 'Host', 'Time', 'OS', 'Proto', 'Port',
             'Service', 'Product', 'Service FP',
             'NSE Script ID', 'NSE Script Output', 'Notes'
         ]
@@ -146,6 +150,39 @@ def parse_to_csv(data):
     for item in data:
         csv_writer.writerow(item)
     csv_file.close()        
+    
+def parse_to_json(data):
+    """Given a list of data, adds the items to (or creates) a JSON file."""
+    if not os.path.isfile(json_name):
+        json_file = open(json_name, 'w', newline='')
+        print('\n[+] The file {} does not exist. New file created!\n'.format(
+                json_name))
+    else:
+        try:
+            json_file = open(json_name, 'a', newline='')
+        except PermissionError as e:
+            print("\n[-] Permission denied to open the file {}. "
+                  "Check if the file is open and try again.\n".format(json_name))
+            print("Print data to the terminal:\n")
+            if args.debug:
+                print(e)
+            for item in data:
+                print(' '.join(item))
+            exit()
+        print('\n[+] {} exists. Appending to file!\n'.format(json_name))
+        
+        
+    for item in data:
+        """top_row = [
+            'IP', 'Host', 'OS', 'Proto', 'Port',
+            'Service', 'Product', 'Service FP',
+            'NSE Script ID', 'NSE Script Output', 'Notes'
+        ]"""
+        timestamp = datetime.datetime.fromtimestamp(int(item[2]))
+        row = "{\"ip\":\"%s\",\"port\":\"%s\",\"timestamp\":\"%s\"}\n" % (item[0], item[5], timestamp)
+        json_file.write(row)
+        
+    json_file.close()        
 
 def list_ip_addresses(data):
     """Parses the input data to return only the IP address information"""
@@ -171,20 +208,27 @@ def print_web_ports(data):
                        '7777', '8333', '8531', '8888']
     for item in data:
         ip = item[0]
-        port = item[4]
+        port = item[5]
         if port.endswith('43') and port != "143" or port in https_port_list:
             print("https://{}:{}".format(ip, port))
         elif port in http_port_list:
             print("http://{}:{}".format(ip, port))
         else:
             continue    
+
+def print_ip_port(data):
+    for item in data:
+        ip = item[0]
+        port = item[5]
+        print("{}:{}".format(ip, port))
+
     
 def least_common_ports(data, n):
     """Examines the port index from data and prints the least common ports."""
     c = Counter()
     for item in data:
         try:
-            port = item[4]
+            port = item[5]
             c.update([port])
         except IndexError as e:
             if args.debug:
@@ -199,7 +243,7 @@ def most_common_ports(data, n):
     c = Counter()
     for item in data:
         try:
-            port = item[4]
+            port = item[5]
             c.update([port])
         except IndexError as e:
             if args.debug:
@@ -215,7 +259,7 @@ def print_filtered_port(data, filtered_port):
     """
     for item in data:
         try:
-            port = item[4]
+            port = item[5]
         except IndexError as e:
             if args.debug:
                 print(e)
@@ -257,12 +301,16 @@ def main():
             exit()
         if args.csv:
             parse_to_csv(data)
+        if args.json:
+            parse_to_json(data)
         if args.ip_addresses:
             addrs = list_ip_addresses(data)
             for addr in addrs:
                 print(addr)
         if args.print_all:
             print_data(data)
+        if args.print_ip_port:
+            print_ip_port(data)
         if args.filter_by_port:
             print_filtered_port(data, args.filter_by_port)
         if args.print_web_ports:
@@ -285,6 +333,9 @@ if __name__ == '__main__':
     parser.add_argument("-p", "--print_all",
                         help="Display scan information to the screen", 
                         action="store_true")
+    parser.add_argument("-pip", "--print_ip_port",
+                        help="Display IP:port information", 
+                        action="store_true")
     parser.add_argument("-pw", "--print_web_ports",
                         help="Display IP addresses/ports in URL format "
                              "(http://ipaddr:port)",
@@ -294,7 +345,11 @@ if __name__ == '__main__':
                         action="store_true")
     parser.add_argument("-csv", "--csv",
                         nargs='?', const='scan.csv',
-                        help="Specify the name of a csv file to write to. "
+                        help="Specify the name of a CSV file to write to. "
+                             "If the file already exists it will be appended")
+    parser.add_argument("-json", "--json",
+                        nargs='?', const='scan.json',
+                        help="Specify the name of a JSON file to write to. "
                              "If the file already exists it will be appended")
     parser.add_argument("-f", "--filename",
                         nargs='*',
@@ -320,11 +375,12 @@ if __name__ == '__main__':
         print("\n[-] Please specify an input file to parse. "
               "Use -f <nmap_scan.xml> to specify the file\n")
         exit()
-    if not args.ip_addresses and not args.csv and not args.print_all \
+    if not args.ip_addresses and not args.csv and not args.json and not args.print_ip_port and not args.print_all \
                 and not args.print_web_ports and not args.least_common_ports \
                 and not args.most_common_ports and not args.filter_by_port:
         parser.print_help()
         print("\n[-] Please choose an output option. Use -csv, -ip, or -p\n")
         exit()
     csv_name = args.csv
+    json_name = args.json
     main()
