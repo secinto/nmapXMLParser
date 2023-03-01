@@ -4,11 +4,12 @@
   
   <img src="https://img.shields.io/github/watchers/secinto/nmapXMLParser?label=Watchers&style=for-the-badge" alt="GitHub Watchers">
   <img src="https://img.shields.io/github/stars/secinto/nmapXMLParser?style=for-the-badge" alt="GitHub Stars">
+  <a href="https://twitter.com/skraxberger"><img src="https://img.shields.io/twitter/follow/pdiscoveryio.svg?logo=twitter"></a>
   <img src="https://img.shields.io/github/license/secinto/nmapXMLParser?style=for-the-badge" alt="GitHub License">
 </p>
 
-Developed by Jake Miller (https://twitter.com/LaconicWolf/)
-Updated and extended by Stefan Kraxberger (https://twitter.com/skraxberger/)  
+Developed by Jake Miller - https://twitter.com/LaconicWolf/
+Updated and extended by Stefan Kraxberger - https://twitter.com/skraxberger/
 
 Released as open source by secinto GmbH - https://secinto.com/  
 Released under Apache License version 2.0 see LICENSE for more information
