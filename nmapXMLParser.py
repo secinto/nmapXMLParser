@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 __author__ = 'Jake Miller (@LaconicWolf)\nStefan Kraxberger (@skraxberger)'
-__date__ = '20230301'
-__version__ = '0.02'
+__date__ = '20230504'
+__version__ = '0.03'
 __description__ = """Parses the XML output from an nmap scan. The user
                   can specify whether the data should be printed,
                   displayed as a list of IP addresses, or output to
@@ -35,13 +35,17 @@ def get_host_data(root):
         # Get IP address and host info. If no hostname, then ''
         ip_address = host.findall('address')[0].attrib['addr']
         host_name_element = host.findall('hostnames')
+        
         try:
             host_name = host_name_element[0].findall('hostname')[0].attrib['name']
         except IndexError:
             host_name = ''
-
-        endtime = host.attrib['endtime']
-
+       
+        if "endtime" in host.attrib:
+            endtime = host.attrib['endtime']
+        else:
+            endtime = datetime.datetime.now().timestamp()
+            
         # If we only want the IP addresses from the scan, stop here
         if args.ip_addresses:
             addr_info.extend((ip_address, host_name))
@@ -65,6 +69,7 @@ def get_host_data(root):
                 if args.udp_open:
                     # Display both open ports and open}filtered ports
                     if not 'open' in port.findall('state')[0].attrib['state']:
+                        #print("UDP port state {}".format(port.findall('state')[0].attrib['state']))
                         continue
                 else:
                     # Ignore ports that are not 'open'
@@ -92,17 +97,18 @@ def get_host_data(root):
                     script_output = ''
 
                 # Create a list of the port data
-                port_data.extend((ip_address, host_name, endtime, os_name,
-                                  proto, port_id, service, product, 
-                                  servicefp, script_id, script_output))
-                
-                # Add the port data to the host data
-                host_data.append(port_data)
+                if port_id != '':
+                    #print('Port found with number {}'.format(port_id))
+                    port_data.extend((ip_address, host_name, endtime, os_name,
+                                      proto, port_id, service, product, 
+                                      servicefp, script_id, script_output))
+                    host_data.append(port_data)
 
         # If no port information, just create a list of host information
         except IndexError:
             addr_info.extend((ip_address, host_name, endtime))
-            host_data.append(addr_info)
+            #host_data.append(addr_info)
+            #print('No port information available. Not using IP {}'.format(ip_address))
     return host_data
 
 def parse_xml(filename):
@@ -153,23 +159,19 @@ def parse_to_csv(data):
     
 def parse_to_json(data):
     """Given a list of data, adds the items to (or creates) a JSON file."""
-    if not os.path.isfile(json_name):
+
+    try:
         json_file = open(json_name, 'w', newline='')
-        print('\n[+] The file {} does not exist. New file created!\n'.format(
-                json_name))
-    else:
-        try:
-            json_file = open(json_name, 'a', newline='')
-        except PermissionError as e:
-            print("\n[-] Permission denied to open the file {}. "
-                  "Check if the file is open and try again.\n".format(json_name))
-            print("Print data to the terminal:\n")
-            if args.debug:
-                print(e)
-            for item in data:
-                print(' '.join(item))
-            exit()
-        print('\n[+] {} exists. Appending to file!\n'.format(json_name))
+    except PermissionError as e:
+        print("\n[-] Permission denied to open the file {}. "
+              "Check if the file is open and try again.\n".format(json_name))
+        print("Print data to the terminal:\n")
+        if args.debug:
+            print(e)
+        for item in data:
+            print(' '.join(item))
+        exit()
+    print('\n[+] Writing to file {}!\n'.format(json_name))
         
         
     for item in data:
@@ -179,8 +181,12 @@ def parse_to_json(data):
             'NSE Script ID', 'NSE Script Output', 'Notes'
         ]"""
         timestamp = datetime.datetime.fromtimestamp(int(item[2]))
-        row = "{\"ip\":\"%s\",\"port\":\"%s\",\"timestamp\":\"%s\"}\n" % (item[0], item[5], timestamp)
-        json_file.write(row)
+        if len(item) > 4:
+            row = "{\"ip\":\"%s\",\"port\":\"%s\",\"timestamp\":\"%s\"}\n" % (item[0], item[5], timestamp.strftime("%Y-%m-%dT%H:%M:%S.%f000Z"))
+            json_file.write(row)
+        elif len(item) > 3:
+            row = "{\"ip\":\"%s\",\"timestamp\":\"%s\"}\n" % (item[0], timestamp.strftime("%Y-%m-%dT%H:%M:%S.%f000Z"))
+            json_file.write(row)
         
     json_file.close()        
 
@@ -219,9 +225,9 @@ def print_web_ports(data):
 def print_ip_port(data):
     for item in data:
         ip = item[0]
-        port = item[5]
-        print("{}:{}".format(ip, port))
-
+        if len(item) == 6:
+            port = item[5]
+            print("{}:{}".format(ip, port))
     
 def least_common_ports(data, n):
     """Examines the port index from data and prints the least common ports."""
