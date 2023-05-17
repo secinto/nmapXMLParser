@@ -79,22 +79,23 @@ def get_host_data(root):
                 proto = port.attrib['protocol']
                 port_id = port.attrib['portid']
                 service = port.findall('service')[0].attrib['name']
+
                 try:
                     product = port.findall('service')[0].attrib['product']
                 except (IndexError, KeyError):
-                    product = ''      
+                    product = '""'      
                 try:
                     servicefp = port.findall('service')[0].attrib['servicefp']
                 except (IndexError, KeyError):
-                    servicefp = ''
+                    servicefp = '""'
                 try:
                     script_id = port.findall('script')[0].attrib['id']
                 except (IndexError, KeyError):
-                    script_id = ''
+                    script_id = '""'
                 try:
                     script_output = port.findall('script')[0].attrib['output']
                 except (IndexError, KeyError):
-                    script_output = ''
+                    script_output = '""'
 
                 # Create a list of the port data
                 if port_id != '':
