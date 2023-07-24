@@ -39,13 +39,8 @@ def get_host_data(root):
         try:
             host_name = host_name_element[0].findall('hostname')[0].attrib['name']
         except IndexError:
-            host_name = ''
+            host_name = '""'
        
-        if "endtime" in host.attrib:
-            endtime = host.attrib['endtime']
-        else:
-            endtime = datetime.datetime.now().timestamp()
-            
         # If we only want the IP addresses from the scan, stop here
         if args.ip_addresses:
             addr_info.extend((ip_address, host_name))
@@ -57,7 +52,7 @@ def get_host_data(root):
             os_element = host.findall('os')
             os_name = os_element[0].findall('osmatch')[0].attrib['name']
         except IndexError:
-            os_name = ''
+            os_name = '""'
         
         # Get information on ports and services
         try:
@@ -78,16 +73,16 @@ def get_host_data(root):
                 
                 proto = port.attrib['protocol']
                 port_id = port.attrib['portid']
-                service = port.findall('service')[0].attrib['name']
-
+                
+                try:
+                    service = port.findall('service')[0].attrib['name']
+                except (IndexError, KeyError):
+                    service = 'unknown'
+                
                 try:
                     product = port.findall('service')[0].attrib['product']
                 except (IndexError, KeyError):
-                    product = '""'      
-                try:
-                    servicefp = port.findall('service')[0].attrib['servicefp']
-                except (IndexError, KeyError):
-                    servicefp = '""'
+                    product = '""'
                 try:
                     script_id = port.findall('script')[0].attrib['id']
                 except (IndexError, KeyError):
@@ -99,15 +94,15 @@ def get_host_data(root):
 
                 # Create a list of the port data
                 if port_id != '':
-                    #print('Port found with number {}'.format(port_id))
-                    port_data.extend((ip_address, host_name, endtime, os_name,
-                                      proto, port_id, service, product, 
-                                      servicefp, script_id, script_output))
+                    #print('IP {} Host {} Proto {} Port {} Service {}'.format(ip_address, host_name, proto, port_id, service))
+                    port_data.extend((ip_address, host_name, os_name,
+                                      proto, port_id, service, product))
+                    #print(' '.join(port_data))
                     host_data.append(port_data)
 
         # If no port information, just create a list of host information
         except IndexError:
-            addr_info.extend((ip_address, host_name, endtime))
+            addr_info.extend((ip_address, host_name))
             #host_data.append(addr_info)
             #print('No port information available. Not using IP {}'.format(ip_address))
     return host_data
@@ -120,8 +115,8 @@ def parse_xml(filename):
     try:
         tree = etree.parse(filename)
     except Exception as error:
-        print("[-] A an error occurred. The XML may not be well formed. "
-              "Please review the error and try again: {}".format(error))
+        #print("[-] A an error occurred. The XML may not be well formed. "
+        #      "Please review the error and try again: {}".format(error))
         exit()
     root = tree.getroot()
     scan_data = get_host_data(root)
@@ -138,22 +133,22 @@ def parse_to_csv(data):
             'NSE Script ID', 'NSE Script Output', 'Notes'
         ]
         csv_writer.writerow(top_row)
-        print('\n[+] The file {} does not exist. New file created!\n'.format(
-                csv_name))
+        #print('\n[+] The file {} does not exist. New file created!\n'.format(
+        #        csv_name))
     else:
         try:
             csv_file = open(csv_name, 'a', newline='')
         except PermissionError as e:
-            print("\n[-] Permission denied to open the file {}. "
-                  "Check if the file is open and try again.\n".format(csv_name))
-            print("Print data to the terminal:\n")
+            #print("\n[-] Permission denied to open the file {}. "
+            #      "Check if the file is open and try again.\n".format(csv_name))
+            #print("Print data to the terminal:\n")
             if args.debug:
                 print(e)
             for item in data:
                 print(' '.join(item))
             exit()
         csv_writer = csv.writer(csv_file)
-        print('\n[+] {} exists. Appending to file!\n'.format(csv_name))
+        #print('\n[+] {} exists. Appending to file!\n'.format(csv_name))
     for item in data:
         csv_writer.writerow(item)
     csv_file.close()        
@@ -164,15 +159,15 @@ def parse_to_json(data):
     try:
         json_file = open(json_name, 'w', newline='')
     except PermissionError as e:
-        print("\n[-] Permission denied to open the file {}. "
-              "Check if the file is open and try again.\n".format(json_name))
-        print("Print data to the terminal:\n")
+        #print("\n[-] Permission denied to open the file {}. "
+        #      "Check if the file is open and try again.\n".format(json_name))
+        #print("Print data to the terminal:\n")
         if args.debug:
             print(e)
         for item in data:
             print(' '.join(item))
         exit()
-    print('\n[+] Writing to file {}!\n'.format(json_name))
+    #print('\n[+] Writing to file {}!\n'.format(json_name))
         
         
     for item in data:
@@ -181,9 +176,9 @@ def parse_to_json(data):
             'Service', 'Product', 'Service FP',
             'NSE Script ID', 'NSE Script Output', 'Notes'
         ]"""
-        timestamp = datetime.datetime.fromtimestamp(int(item[2]))
+        timestamp = datetime.datetime.now()
         if len(item) > 4:
-            row = "{\"ip\":\"%s\",\"port\":\"%s\",\"timestamp\":\"%s\"}\n" % (item[0], item[5], timestamp.strftime("%Y-%m-%dT%H:%M:%S.%f000Z"))
+            row = "{\"ip\":\"%s\",\"port\":\"%s\",\"timestamp\":\"%s\"}\n" % (item[0], item[4], timestamp.strftime("%Y-%m-%dT%H:%M:%S.%f000Z"))
             json_file.write(row)
         elif len(item) > 3:
             row = "{\"ip\":\"%s\",\"timestamp\":\"%s\"}\n" % (item[0], timestamp.strftime("%Y-%m-%dT%H:%M:%S.%f000Z"))
@@ -206,13 +201,13 @@ def print_web_ports(data):
     # http and https port numbers came from experience as well as
     # searching for http on th following website:
     # https://en.wikipedia.org/wiki/List_of_TCP_and_UDP_port_numbers
-    http_port_list = ['80', '280', '81', '591', '593', '2080', '2480', '3080', 
-                      '4080', '4567', '5080', '5104', '5800', '6080',
-                      '7001', '7080', '7777', '8000', '8008', '8042', '8080',
+    http_port_list = ['80', '280', '81', '591', '593', '445', '457', '2080', '2480', '3080', 
+                      '4080', '4100', '4567', '5080', '5104', '5800', '6080', '1241', '1342', '1433', '1434', '1521', '1944', '2301', '3000', '3128', '3306', '5000', '5200', '5800', '5432', '5801', '5802', '6346', '6347',
+                      '7001', '7002', '7080', '7777', '8000', '8008', '8042', '8080',
                       '8081', '8082', '8088', '8180', '8222', '8280', '8281',
                       '8530', '8887', '9000', '9080', '9090', '16080']                    
     https_port_list = ['832', '981', '1311', '7002', '7021', '7023', '7025',
-                       '7777', '8333', '8531', '8888']
+                       '7777', '8333', '8531', '8888', '30821', '4000', '4001', '4002']
     for item in data:
         ip = item[0]
         port = item[5]
@@ -286,8 +281,8 @@ def main():
         # Checks the file path
         if not os.path.exists(filename):
             parser.print_help()
-            print("\n[-] The file {} cannot be found or you do not have "
-                  "permission to open the file.".format(filename))
+            #print("\n[-] The file {} cannot be found or you do not have "
+            #      "permission to open the file.".format(filename))
             continue
 
         if not args.skip_entity_check:
@@ -295,16 +290,16 @@ def main():
             with open(filename) as fh:
                 contents = fh.read()
                 if '<!entity' in contents.lower():
-                    print("[-] Error! This program does not permit XML "
-                          "entities. Ignoring {}".format(filename))
-                    print("[*] Use -s (--skip_entity_check) to ignore this "
-                          "check for XML entities.")
+                    #print("[-] Error! This program does not permit XML "
+                    #      "entities. Ignoring {}".format(filename))
+                    #print("[*] Use -s (--skip_entity_check) to ignore this "
+                    #      "check for XML entities.")
                     continue
         data = parse_xml(filename)
         if not data:
-            print("[*] Zero hosts identitified as 'Up' or with 'open' ports. "
-                  "Use the -u option to display ports that are 'open|filtered'. "
-                  "Exiting.")
+            #print("[*] Zero hosts identitified as 'Up' or with 'open' ports. "
+            #      "Use the -u option to display ports that are 'open|filtered'. "
+            #      "Exiting.")
             exit()
         if args.csv:
             parse_to_csv(data)
@@ -323,10 +318,10 @@ def main():
         if args.print_web_ports:
             print_web_ports(data)
         if args.least_common_ports:
-            print("\n{} LEAST COMMON PORTS".format(filename.upper()))
+            #print("\n{} LEAST COMMON PORTS".format(filename.upper()))
             least_common_ports(data, args.least_common_ports)
         if args.most_common_ports:
-            print("\n{} MOST COMMON PORTS".format(filename.upper()))
+            #print("\n{} MOST COMMON PORTS".format(filename.upper()))
             most_common_ports(data, args.most_common_ports)
 
 if __name__ == '__main__':
